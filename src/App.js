@@ -21,14 +21,65 @@ function Loading() {
   );
 }
 
-function MModel() {
+function MoonRad() {
   const glb = useLoader(GLTFLoader, "./nonreldonut.glb");
   return (
     <group>
       <mesh
         castShadow
         visible
-        scale={[800,800,800]}
+        scale={[9,9,9]}
+        geometry={glb.nodes.mesh.geometry}>
+        <meshBasicMaterial
+          wireframe={true}
+          attach="material"
+          color="#FFFFFF"
+          opacity={.02}
+          transparent={true}
+          roughness={0.4}
+          metalness={1.0}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+
+
+const MModel= props => {
+  const glb = useLoader(GLTFLoader, "./nonreldonut.glb");
+  const gValue = props.scale.inActive[0] * 1135
+
+  return (
+    <group>
+      <mesh
+        castShadow
+        visible
+        scale={[gValue,gValue,gValue]}
+        position={[0, 0, 0]}
+        geometry={glb.nodes.mesh.geometry}>
+        <meshBasicMaterial
+          wireframe={true}
+          attach="material"
+          color="#FFFFFF"
+          opacity={.02}
+          transparent={true}
+          roughness={0.4}
+          metalness={1.0}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function GField() {
+  const glb = useLoader(GLTFLoader, "./gfield.glb");
+  return (
+    <group>
+      <mesh
+        castShadow
+        visible
+        scale={[9,9,9]}
         position={[0, 0, 0]}
         geometry={glb.nodes.mesh.geometry}>
         <meshBasicMaterial
@@ -57,9 +108,11 @@ const Axi = ( props ) => {
 
 
 const Sphere =( { props } )=> {
-  const {pos, color, scale, name} = props
+  const {pos, color, scale, name , field} = props
   // This reference will give us direct access to the mesh
+  const group = useRef()
   const mesh = useRef()
+  const pivot = (name === 'moon') ? group : mesh
   // Set up state for the hovered and active state
   const [hovered, setHover] = useState(false)
   const [active, setActive] = useState(false)
@@ -67,16 +120,17 @@ const Sphere =( { props } )=> {
   let elapsedTime = 0
 
   // Rotate mesh every frame, this is outside of React without overhead
+  
   useFrame(() => {
-    mesh.current.rotation.y = mesh.current.rotation.y += 0.01
+    pivot.current.rotation.y = pivot.current.rotation.y -= 0.001
     let earthRadius = 1
     // orbit
     if (name === 'moon'){
-      let distanceFromEarth = earthRadius * 60
+      let distanceFromEarth = earthRadius * 7.5
       const deltaTime = 0.001
       elapsedTime += deltaTime
-      mesh.current.position.x += (distanceFromEarth*deltaTime)*Math.cos(elapsedTime) + 0;
-      mesh.current.position.z += (distanceFromEarth*deltaTime)*Math.sin(elapsedTime) + 0;
+      pivot.current.position.x += (distanceFromEarth*deltaTime)*Math.cos(elapsedTime) + 0;
+      pivot.current.position.z += (distanceFromEarth*deltaTime)*Math.sin(elapsedTime) + 0;
     }
   })
 
@@ -87,28 +141,53 @@ const Sphere =( { props } )=> {
   */
 
   return (
-    <mesh 
+    field.gRad ?
+    <group 
       position={pos}
-      visible 
-      userData={{ test: "hello" }}
-      castShadow
-      ref={mesh}
-      scale={active ? scale.active : scale.inActive}>
-      <sphereGeometry attach="geometry" args={[1, 32, 32]} />
-      <meshStandardMaterial
-        attach="material"
-        color={hovered ? color.active : color.inActive}
-        transparent
-        roughness={0.4}
-      />
-    </mesh>
+      rotation={name === 'moon' ? [0,1.571,0] : [0,0,0]} 
+      ref={group}>
+      <Suspense fallback={ <Loading /> }>
+        <MModel scale={scale}/>
+      </Suspense>
+      <mesh 
+        visible 
+        userData={{ test: "hello" }}
+        castShadow
+        ref={mesh}
+        scale={active ? scale.active : scale.inActive}>
+        <sphereGeometry attach="geometry" args={[1, 32, 32]} />
+        <meshStandardMaterial
+          attach="material"
+          color={hovered ? color.active : color.inActive}
+          transparent
+          roughness={0.4}
+        />
+      </mesh>
+    </group>
+    :
+    <group position={pos} ref={group}>
+      <mesh 
+        visible 
+        userData={{ test: "hello" }}
+        castShadow
+        ref={mesh}
+        scale={active ? scale.active : scale.inActive}>
+        <sphereGeometry attach="geometry" args={[1, 32, 32]} />
+        <meshStandardMaterial
+          attach="material"
+          color={hovered ? color.active : color.inActive}
+          transparent
+          roughness={0.4}
+        />
+      </mesh>
+    </group>
   );
 }
 
 
 const bodies = {
   moon: {
-    pos: [0, 0, -60],
+    pos: [0, 0, -7.5],
     scale: {
       active: [.405, .405, .405],
       inActive: [.27, .27, .27]
@@ -117,10 +196,14 @@ const bodies = {
       active: 'hotpink',
       inActive: 'lightgrey'
     },
+    field:{
+      gRad:true,
+      gField:false,
+    },
     name: 'moon'
   },
   marker: {
-    pos: [0, 0, 60],
+    pos: [0, 0, 7.5],
     scale: {
       active: [1, 1, 1],
       inActive: [1,1,1]
@@ -128,6 +211,10 @@ const bodies = {
     color: {
       active: 'hotpink',
       inActive: 'red'
+    },
+    field:{
+      gRad:false,
+      gField:false,
     },
     name: 'marker'
   },
@@ -141,32 +228,18 @@ const bodies = {
       active: 'hotpink',
       inActive: 'skyblue'
     },
+    field:{
+      gRad:true,
+      gField:false,
+    },
     name: 'earth'
   }
 }
 
 export default function App() {
 
-  // Loads the skybox texture and applies it to the scene.
-  function SkyBox() {
-    const { scene } = useThree();
-    // Set the scene background property to the resulting texture.
-    scene.background = <Stars
-      radius={100} // Radius of the inner sphere (default=100)
-      depth={50} // Depth of area where stars should fit (default=50)
-      count={5000} // Amount of stars (default=5000)
-      factor={4} // Size factor (default=4)
-      saturation={0} // Saturation 0-1 (default=0)
-      fade={true} // Faded dots (default=false)
-    />
-    return null;
-  }
-  /*
-  const donut = () => {
-    const test = useGLTF('../public/nonreldonut.glb')
-    return false
-  }
-  */
+ //<Axi scale={[.2, .05, 2000]} color='red'/>
+ //<Axi scale={[2000,.7.5,.2]} color='blue'/>
 
   return (
     <Canvas colorManagement camera={{ position: [0, 0, 11], fov: 40 }}>
@@ -174,23 +247,28 @@ export default function App() {
 
       <directionalLight intensity={.5} position={[100, 0, 20]} />
 
-      
+      <Axi scale={[.2, .05, 2000]} color='red'/>
+      <Axi scale={[2000, .05 ,.2]} color='blue'/>
+
       <Sphere props={ bodies.moon } />
       <Sphere props={ bodies.earth } />
       <Sphere props={ bodies.marker } />
 
       <Suspense fallback={ <Loading /> }>
-        <MModel />
+        <GField />
       </Suspense>
 
-      <Axi scale={[.2, .05, 2000]} color='red'/>
-      <Axi scale={[2000,.15,.2]} color='blue'/>
 
-
-
-      <Stars />
+      <Stars
+        radius={400} // Radius of the inner sphere (default=100)
+        depth={50} // Depth of area where stars should fit (default=50)
+        count={7.5000} // Amount of stars (default=5000)
+        factor={4} // Size factor (default=4)
+        saturation={0} // Saturation 0-1 (default=0)
+        fade={true} // Faded dots (default=false)
+      />
       <OrbitControls/>
-      <Effects/>
+
     </Canvas>
   )
 }
